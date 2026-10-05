@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:"Carteira" }}{% endblock %}
+
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'financeiro/tema.css' %}">{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Carteira - Financeiro" }}</a></div>
+{% endblock %}
+
+{% block userlinks %}<a href="{% url 'financeiro:painel' %}">Painel</a> /
+<a href="{% url 'financeiro:relatorios' %}">Relatórios</a> /
+{% if user.is_superuser %}<a href="{% url 'financeiro:atividades' %}">Atividades</a> / {% endif %}{{ block.super }}{% endblock %}
+
+{% block nav-global %}
+{% if not has_permission %}
+{# Telas sem login (ex.: entrar): mostra so o botao de tema claro/escuro #}
+<div id="user-tools">{% include "admin/color_theme_toggle.html" %}</div>
+{% endif %}
+{% endblock %}

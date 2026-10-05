@@ -1,0 +1,3 @@
+{% extends "admin/login.html" %}
+{# A tela de login do Django esvazia o topo; aqui mostramos so o botao de tema claro/escuro. #}
+{% block nav-global %}<div id="user-tools">{% include "admin/color_theme_toggle.html" %}</div>{% endblock %}

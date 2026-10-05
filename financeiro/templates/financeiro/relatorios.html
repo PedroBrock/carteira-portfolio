@@ -1,0 +1,74 @@
+{% extends "admin/base_site.html" %}
+{% load financeiro_tags %}
+
+{% block title %}Relatórios | Carteira{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .relatorio { max-width: 760px; }
+  .relatorio table { width: 100%; margin-bottom: 26px; }
+  .relatorio th.secao { background: var(--primary); color: var(--header-link-color); font-size: 13px; text-transform: none; }
+  .relatorio td.num, .relatorio th.num { text-align: right; width: 140px; }
+  .relatorio tr.total td { font-weight: 700; border-top: 2px solid var(--hairline-color); }
+  .relatorio .navegar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 8px 0 18px; }
+  .relatorio .nota { color: var(--body-quiet-color); font-size: 12px; margin-top: -18px; margin-bottom: 24px; }
+  .relatorio .vencido { color: var(--cor-vencido); }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'financeiro:painel' %}">Painel</a> › Relatórios</div>
+{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<div class="relatorio">
+  <h1>Relatórios <small style="font-weight:normal">- posição em {{ hoje|date:"d/m/Y" }}</small></h1>
+
+  <div class="navegar">
+    <a href="?mes={{ mes_anterior }}">‹ Mês anterior</a>
+    <strong>{{ inicio|date:"F \d\e Y"|capfirst }}</strong>
+    <a href="?mes={{ mes_seguinte }}">Mês seguinte ›</a>
+    <a href="{% url 'financeiro:relatorios' %}">Mês atual</a>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th class="secao">Parcelas de {{ inicio|date:"F/Y" }}</th><th class="secao num">Quantidade</th><th class="secao num">Valor</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="vencido">Já venceram e não foram pagas</td><td class="num">{{ mes.venceram.qtd }}</td><td class="num">{{ mes.venceram.total|brl }}</td></tr>
+      <tr><td>Ainda vão vencer</td><td class="num">{{ mes.a_vencer.qtd }}</td><td class="num">{{ mes.a_vencer.total|brl }}</td></tr>
+      <tr class="total"><td>A receber no mês (vencidas + a vencer)</td><td class="num">{{ mes.a_receber.qtd }}</td><td class="num">{{ mes.a_receber.total|brl }}</td></tr>
+      <tr><td>Já pagas</td><td class="num">{{ mes.pagas.qtd }}</td><td class="num">{{ mes.pagas.total|brl }}</td></tr>
+      <tr class="total"><td>Total previsto do mês (pagas + a receber)</td><td class="num">{{ mes.previsto.qtd }}</td><td class="num">{{ mes.previsto.total|brl }}</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead>
+      <tr><th class="secao">Próximo mês ({{ prox_inicio|date:"F/Y" }})</th><th class="secao num">Quantidade</th><th class="secao num">Valor</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Vão vencer</td><td class="num">{{ proximo_mes.qtd }}</td><td class="num">{{ proximo_mes.total|brl }}</td></tr>
+    </tbody>
+  </table>
+
+  <table>
+    <thead>
+      <tr><th class="secao">Carteira hoje (mesmas faixas do extrato da Caixa)</th><th class="secao num">Quantidade</th><th class="secao num">Valor</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="vencido">Venceram há menos de 1 mês <small>("Títulos vencidos" no banco)</small></td><td class="num">{{ carteira.em_carencia.qtd }}</td><td class="num">{{ carteira.em_carencia.total|brl }}</td></tr>
+      <tr><td>A vencer em até 30 dias</td><td class="num">{{ carteira.ate_30.qtd }}</td><td class="num">{{ carteira.ate_30.total|brl }}</td></tr>
+      <tr><td>A vencer em 31 a 60 dias</td><td class="num">{{ carteira.ate_60.qtd }}</td><td class="num">{{ carteira.ate_60.total|brl }}</td></tr>
+      <tr><td>A vencer após 60 dias</td><td class="num">{{ carteira.apos_60.qtd }}</td><td class="num">{{ carteira.apos_60.total|brl }}</td></tr>
+      <tr><td class="vencido">Vencidas há mais de 1 mês <small>(baixadas pelo banco)</small></td><td class="num">{{ carteira.vencidas.qtd }}</td><td class="num">{{ carteira.vencidas.total|brl }}</td></tr>
+      <tr class="total"><td>Total em aberto</td><td class="num">{{ carteira.total_aberto.qtd }}</td><td class="num">{{ carteira.total_aberto.total|brl }}</td></tr>
+    </tbody>
+  </table>
+  <p class="nota">Os números batem com o extrato do banco quando o último extrato importado é do mesmo dia.
+    Parcelas em "Baixado - verificar" não entram nos totais.</p>
+</div>
+{% endblock %}

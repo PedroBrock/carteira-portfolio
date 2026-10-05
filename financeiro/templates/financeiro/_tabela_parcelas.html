@@ -1,0 +1,22 @@
+{% load financeiro_tags %}
+{% if parcelas %}
+<table>
+  <thead>
+    <tr><th>Cliente</th><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th>Situação</th><th>Nosso número</th></tr>
+  </thead>
+  <tbody>
+  {% for p in parcelas %}
+    <tr>
+      <td><a href="{% url 'admin:financeiro_financiamento_change' p.financiamento_id %}">{{ p.financiamento.cliente.nome }}</a></td>
+      <td>{{ p.rotulo_numero }}</td>
+      <td>{{ p.vencimento|date:"d/m/Y" }}</td>
+      <td class="num">{{ p.valor|brl }}</td>
+      <td>{{ p.situacao|selo_situacao }}</td>
+      <td><a href="{% url 'admin:financeiro_parcela_change' p.pk %}">{{ p.nosso_numero|default:"-" }}</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="vazio">Nenhuma parcela.</p>
+{% endif %}

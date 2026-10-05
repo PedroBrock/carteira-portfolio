@@ -1,0 +1,76 @@
+{% extends "admin/base_site.html" %}
+{% load financeiro_tags %}
+
+{% block title %}Painel | Carteira{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .card { border: 1px solid var(--hairline-color); border-radius: 8px; padding: 14px 16px; background: var(--body-bg); }
+  .card h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--body-quiet-color); text-transform: uppercase; }
+  .card .valor { font-size: 22px; font-weight: 700; }
+  .card .qtd { color: var(--body-quiet-color); }
+  .card.vencido .valor { color: var(--cor-vencido); }
+  .card.pago .valor { color: var(--cor-pago); }
+  .card.verificar .valor { color: var(--cor-verificar); }
+  .painel table { width: 100%; margin-bottom: 28px; }
+  .painel td.num, .painel th.num { text-align: right; }
+  .painel h2 { margin-top: 8px; }
+  .vazio { color: var(--body-quiet-color); margin-bottom: 28px; }
+  .aviso-caixa { background: var(--cor-verificar-fundo); color: var(--cor-verificar); padding: 10px 14px; border-radius: 8px; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<div class="painel">
+  <h1>Painel financeiro <small style="font-weight:normal">- {{ hoje|date:"d/m/Y" }}</small></h1>
+  <p>
+    <a href="{% url 'admin:financeiro_cliente_changelist' %}">Clientes</a> ·
+    <a href="{% url 'admin:financeiro_financiamento_changelist' %}">Financiamentos</a> ·
+    <a href="{% url 'admin:financeiro_parcela_changelist' %}">Parcelas</a> ·
+    <a href="{% url 'financeiro:importar_extrato' %}">Importar extrato</a> ·
+    <a href="{% url 'financeiro:relatorios' %}">Relatórios</a>{% if user.is_superuser %} ·
+    <a href="{% url 'financeiro:atividades' %}">Registro de atividades</a>{% endif %}
+  </p>
+
+  {% if pendencias_caixa %}
+  <p class="aviso-caixa">
+    <strong>{{ pendencias_caixa }} alteração(ões) pendente(s) para a Caixa.</strong>
+    <a href="{% url 'admin:financeiro_pendenciacaixa_changelist' %}">Ver o que precisa ser feito no e-Cobrança</a>
+  </p>
+  {% endif %}
+
+  <div class="cards">
+    <div class="card"><h3>A vencer</h3>
+      <div class="valor">{{ totais.A_VENCER.total|brl }}</div>
+      <div class="qtd">{{ totais.A_VENCER.qtd }} parcela(s)</div></div>
+    <div class="card vencido"><h3>Vencido</h3>
+      <div class="valor">{{ totais.VENCIDO.total|brl }}</div>
+      <div class="qtd">{{ totais.VENCIDO.qtd }} parcela(s)</div></div>
+    <div class="card pago"><h3>Recebido no mês</h3>
+      <div class="valor">{{ recebido_mes.total|brl }}</div>
+      <div class="qtd">{{ recebido_mes.qtd }} parcela(s)</div></div>
+    <div class="card verificar"><h3>Baixado - verificar</h3>
+      <div class="valor">{{ totais.VERIFICAR.total|brl }}</div>
+      <div class="qtd">{{ totais.VERIFICAR.qtd }} parcela(s)</div></div>
+  </div>
+
+  {% if verificar %}
+  <h2>Baixadas pelo banco antes de vencer (verificar)</h2>
+  {% include "financeiro/_tabela_parcelas.html" with parcelas=verificar %}
+  {% endif %}
+
+  <h2>Próximos 30 dias</h2>
+  {% include "financeiro/_tabela_parcelas.html" with parcelas=proximas %}
+
+  <h2>Venceram há menos de 1 mês (ainda não contam como vencidas)</h2>
+  {% include "financeiro/_tabela_parcelas.html" with parcelas=em_carencia %}
+
+  <h2>Vencidas</h2>
+  {% include "financeiro/_tabela_parcelas.html" with parcelas=vencidas %}
+</div>
+{% endblock %}

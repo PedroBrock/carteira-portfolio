@@ -1,0 +1,57 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}Registro de atividades | Carteira{% endblock %}
+
+{% block extrastyle %}{{ block.super }}
+<style>
+  .filtro-atividades { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 10px 0 18px; }
+  .filtro-atividades label { display: block; font-weight: 600; margin-bottom: 4px; }
+  .atividades table { width: 100%; }
+  .atividades td { vertical-align: top; }
+  .atividades .quando { white-space: nowrap; }
+  .tipo-EXCLUIU, .tipo-LOGIN_FALHOU { color: var(--cor-vencido); font-weight: 600; }
+  .tipo-CRIOU { color: var(--cor-pago); font-weight: 600; }
+  .paginacao { margin: 16px 0; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'financeiro:painel' %}">Painel</a> › Registro de atividades</div>
+{% endblock %}
+
+{% block content_title %}<h1>Registro de atividades</h1>{% endblock %}
+
+{% block content %}
+<div class="atividades">
+  <form method="get" class="filtro-atividades">
+    {% for campo in filtro %}<div>{{ campo.label_tag }}{{ campo }}</div>{% endfor %}
+    <div><input type="submit" value="Filtrar"> <a href="{% url 'financeiro:atividades' %}">Limpar</a></div>
+  </form>
+
+  {% if pagina.object_list %}
+  <table>
+    <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>O quê</th><th>Detalhes</th><th>IP</th></tr></thead>
+    <tbody>
+    {% for a in pagina %}
+      <tr>
+        <td class="quando">{{ a.data|date:"d/m/Y H:i" }}</td>
+        <td>{{ a.usuario|default:"-" }}</td>
+        <td class="tipo-{{ a.tipo }}">{{ a.tipo_rotulo }}</td>
+        <td>{% if a.link %}<a href="{{ a.link }}">{{ a.o_que }}</a>{% else %}{{ a.o_que }}{% endif %}</td>
+        <td>{{ a.detalhes }}</td>
+        <td>{{ a.ip|default:"" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <div class="paginacao">
+    {% if pagina.has_previous %}<a href="?{{ params }}&pagina={{ pagina.previous_page_number }}">‹ Anterior</a>{% endif %}
+    Página {{ pagina.number }} de {{ pagina.paginator.num_pages }}
+    {% if pagina.has_next %}<a href="?{{ params }}&pagina={{ pagina.next_page_number }}">Próxima ›</a>{% endif %}
+    <span style="color:var(--body-quiet-color)"> - mostra até {{ limite }} registros; use os filtros para buscar mais antigos.</span>
+  </div>
+  {% else %}
+  <p>Nenhuma atividade encontrada.</p>
+  {% endif %}
+</div>
+{% endblock %}

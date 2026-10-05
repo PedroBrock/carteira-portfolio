@@ -1,0 +1,19 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs"><a href="{% url 'financeiro:painel' %}">Painel</a> › Importar extrato</div>
+{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<h1>Importar extrato da Caixa</h1>
+<p>Envie o relatório <strong>CONSULTA DE TITULOS</strong> exportado do banco (.txt).
+  Pode enviar o mesmo extrato ou um mais novo quantas vezes quiser: nada é duplicado,
+  os pagamentos novos são registrados e os ajustes feitos no sistema são mantidos.</p>
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <input type="submit" value="Importar" class="default">
+</form>
+{% endblock %}

@@ -1,0 +1,29 @@
+/* Cores do sistema nos temas claro e escuro (o botao de tema do admin troca data-theme no <html>). */
+:root {
+  --cor-pago-fundo: #e6f4ea;     --cor-pago: #1e7e34;
+  --cor-avencer-fundo: #e8f0fe;  --cor-avencer: #1a56b0;
+  --cor-vencido-fundo: #fdecea;  --cor-vencido: #b3261e;
+  --cor-verificar-fundo: #fff4e5; --cor-verificar: #8a5300;
+}
+
+html[data-theme="dark"] {
+  --cor-pago-fundo: #16351f;     --cor-pago: #7ddc93;
+  --cor-avencer-fundo: #16294a;  --cor-avencer: #8ab4f8;
+  --cor-vencido-fundo: #401a17;  --cor-vencido: #f28b82;
+  --cor-verificar-fundo: #3d2a0d; --cor-verificar: #fbc16a;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="auto"] {
+    --cor-pago-fundo: #16351f;     --cor-pago: #7ddc93;
+    --cor-avencer-fundo: #16294a;  --cor-avencer: #8ab4f8;
+    --cor-vencido-fundo: #401a17;  --cor-vencido: #f28b82;
+    --cor-verificar-fundo: #3d2a0d; --cor-verificar: #fbc16a;
+  }
+}
+
+.selo { padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+.selo-PAGO { background: var(--cor-pago-fundo); color: var(--cor-pago); }
+.selo-A_VENCER { background: var(--cor-avencer-fundo); color: var(--cor-avencer); }
+.selo-VENCIDO { background: var(--cor-vencido-fundo); color: var(--cor-vencido); }
+.selo-VERIFICAR { background: var(--cor-verificar-fundo); color: var(--cor-verificar); }
