@@ -1,0 +1,6 @@
+<nav class="menu-principal" aria-label="Menu principal">{% for grupo in grupos %}
+  {% if grupo.nome %}<p class="menu-grupo" id="menu-grupo-{{ forloop.counter }}">{{ grupo.nome }}</p>{% endif %}
+  <ul{% if grupo.nome %} aria-labelledby="menu-grupo-{{ forloop.counter }}"{% endif %}>{% for item in grupo.itens %}
+    <li data-icone="{{ item.icone }}"{% if item.qtd %} data-qtd="{{ item.qtd }}"{% endif %}{% if item.atual %} class="atual" aria-current="page"{% endif %}><a href="{{ item.url }}">{{ item.rotulo }}</a></li>{% endfor %}
+  </ul>{% endfor %}
+</nav>

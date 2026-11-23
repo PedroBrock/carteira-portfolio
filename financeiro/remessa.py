@@ -15,7 +15,6 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Max
 from django.utils import timezone
 
 from .models import ConvenioCaixa, PendenciaCaixa, RemessaCaixa
@@ -312,8 +311,11 @@ def gerar_remessa(pendencias, usuario=None, agora=None):
     if not enviar:
         return None, ignoradas
 
-    nsa = (RemessaCaixa.objects.aggregate(m=Max("nsa"))["m"] or 0) + 1
+    nsa = conv.proxima_remessa
     teste = conv.ambiente_teste
+    if not teste:  # a Caixa so avanca o numero esperado com remessas de producao
+        conv.proxima_remessa += 1
+        conv.save(update_fields=["proxima_remessa"])
     itens = [(MOVIMENTO[p.tipo], titulo_da_pendencia(p)) for p in enviar]
     remessa = RemessaCaixa.objects.create(
         nsa=nsa,

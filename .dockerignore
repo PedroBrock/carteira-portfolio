@@ -7,3 +7,6 @@ db.sqlite3
 staticfiles
 .env
 dados
+.agents
+.claude
+skills-lock.json

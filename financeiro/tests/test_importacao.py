@@ -265,6 +265,18 @@ class TemaClaroEscuroTests(TestCase):
             resp = self.client.get(url)
             self.assertContains(resp, 'class="theme-toggle"', count=1, msg_prefix=url)
             self.assertContains(resp, "financeiro/tema.css", msg_prefix=url)
+            # Botao alterna so claro/escuro: usa o nosso tema.js no lugar do theme.js do Django (3 modos)
+            self.assertContains(resp, "financeiro/tema.js", msg_prefix=url)
+            self.assertNotContains(resp, "admin/js/theme.js", msg_prefix=url)
+
+    def test_menu_sem_ver_o_site_porque_o_painel_ja_leva_para_o_inicio(self):
+        User.objects.create_superuser("admin", "a@a.com", "senha-forte-123")
+        self.client.login(username="admin", password="senha-forte-123")
+        for url in [reverse("financeiro:painel"), reverse("admin:index")]:
+            resp = self.client.get(url)
+            self.assertContains(resp, f'<a href="{reverse("financeiro:painel")}">Painel</a>', msg_prefix=url)
+            self.assertNotContains(resp, "Ver o site", msg_prefix=url)
+            self.assertNotContains(resp, "View site", msg_prefix=url)
 
     def test_selo_usa_classes_do_tema(self):
         importar_titulos(ler_extrato(EXTRATO), HOJE)

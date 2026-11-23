@@ -1,10 +1,11 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from financeiro.extrato import ler_extrato
 from financeiro.importacao import importar_titulos
@@ -99,11 +100,13 @@ class RemessaTests(TestCase):
         self.assertEqual(campo(trailer_lote, 18, 46), "000006" + "000002" + "00000000000260000")
         self.assertEqual(campo(trailer, 18, 29), "000001" + "000008")
 
-    def test_em_teste_pendencias_continuam_pendentes_e_nsa_avanca(self):
+    def test_em_teste_pendencias_continuam_pendentes_e_nsa_nao_avanca(self):
         self.alterar(ABERTA, vencimento=date(2026, 10, 25))
         primeira, _ = self.gerar()
         segunda, _ = self.gerar()
-        self.assertEqual((primeira.nsa, segunda.nsa), (1, 2))
+        self.assertEqual((primeira.nsa, segunda.nsa), (1, 1))
+        self.conv.refresh_from_db()
+        self.assertEqual(self.conv.proxima_remessa, 1)
         self.assertTrue(segunda.teste)
         pend = P.objects.get()
         self.assertEqual((pend.status, pend.remessa), (P.Status.PENDENTE, segunda))
@@ -115,6 +118,9 @@ class RemessaTests(TestCase):
         remessa, _ = self.gerar()
         self.assertEqual(campo(remessa.conteudo, 192, 211).strip(), "")
         self.assertEqual(P.objects.get().status, P.Status.ENVIADA)
+        self.assertEqual((remessa.nsa, campo(remessa.conteudo, 158, 163)), (1, "000001"))
+        self.conv.refresh_from_db()
+        self.assertEqual(self.conv.proxima_remessa, 2)
 
         importar_titulos(ler_extrato(EXTRATO), HOJE)  # banco ainda nao processou
         self.assertEqual(self.parcela(ABERTA).vencimento, date(2026, 10, 25))
@@ -212,7 +218,8 @@ class RemessaTests(TestCase):
     def test_acao_no_admin_baixa_o_arquivo(self):
         User.objects.create_superuser("admin", "a@a.com", "senha-forte-123")
         self.client.login(username="admin", password="senha-forte-123")
-        self.alterar(ABERTA, vencimento=date(2026, 10, 25))
+        # A acao usa a data de hoje de verdade: o novo vencimento precisa estar no futuro.
+        self.alterar(ABERTA, vencimento=timezone.localdate() + timedelta(days=30))
         resp = self.client.post(
             reverse("admin:financeiro_pendenciacaixa_changelist"),
             {"action": "gerar_arquivo_remessa", "_selected_action": list(P.objects.values_list("pk", flat=True))},

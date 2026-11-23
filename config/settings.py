@@ -6,6 +6,9 @@ Variaveis de ambiente:
 - DJANGO_ALLOWED_HOSTS: hosts separados por virgula
 - DJANGO_CSRF_TRUSTED_ORIGINS: URLs com https:// separadas por virgula (ex. https://exemplo.up.railway.app)
 - DATABASE_URL: ex. postgres://usuario:senha@host:5432/carteira (padrao: SQLite local)
+
+Na Vercel os dominios do projeto (VERCEL_PROJECT_PRODUCTION_URL, VERCEL_URL, VERCEL_BRANCH_URL)
+sao liberados sozinhos; o DATABASE_URL vem da integracao do Neon (conexao pelo pooler).
 """
 
 import os
@@ -39,6 +42,14 @@ if os.environ.get("RAILWAY_ENVIRONMENT_NAME") or os.environ.get("RAILWAY_PUBLIC_
     if dominio := os.environ.get("RAILWAY_PUBLIC_DOMAIN"):
         ALLOWED_HOSTS.append(dominio)
         CSRF_TRUSTED_ORIGINS.append(f"https://{dominio}")
+
+# Vercel: dominio de producao (o .vercel.app ou o dominio proprio mais curto) e o endereco do deploy.
+NA_VERCEL = os.environ.get("VERCEL") == "1"
+if NA_VERCEL:
+    for variavel in ("VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_URL", "VERCEL_BRANCH_URL"):
+        if (dominio := os.environ.get(variavel)) and dominio not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(dominio)
+            CSRF_TRUSTED_ORIGINS.append(f"https://{dominio}")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -86,8 +97,12 @@ DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
+        conn_health_checks=True,
     )
 }
+if NA_VERCEL:
+    # O pooler do Neon (PgBouncer em modo transacao) nao aceita cursores do lado do servidor.
+    DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -100,6 +115,7 @@ LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Sao_Paulo"
 USE_I18N = True
 USE_TZ = True
+FORMAT_MODULE_PATH = ["config.formatos"]
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"

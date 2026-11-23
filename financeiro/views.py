@@ -1,5 +1,7 @@
 import calendar
 from datetime import date, timedelta
+from decimal import Decimal
+from itertools import groupby
 
 from django import forms
 from django.contrib import admin, messages
@@ -43,12 +45,28 @@ def painel(request):
         "recebido_mes": recebido_mes,
         "vencidas": parcelas.filter(situacao=Situacao.VENCIDO).order_by("vencimento"),
         "verificar": parcelas.filter(situacao=Situacao.VERIFICAR).order_by("vencimento"),
-        "proximas": parcelas.filter(
-            situacao=Situacao.A_VENCER, vencimento__gte=hoje, vencimento__lte=hoje + timedelta(days=30)
-        ).order_by("vencimento"),
+        "meses_a_receber": meses_a_receber(parcelas, hoje),
         "em_carencia": parcelas.filter(situacao=Situacao.A_VENCER, vencimento__lt=hoje).order_by("vencimento"),
     }
     return render(request, "financeiro/painel.html", contexto)
+
+
+MESES_A_RECEBER = 3
+
+
+def meses_a_receber(parcelas, hoje):
+    """Parcelas a vencer de hoje ate o fim do 3o mes (o atual e os dois seguintes), agrupadas por mes, com o total."""
+    ano, mes = hoje.year, hoje.month + MESES_A_RECEBER - 1
+    ano, mes = ano + (mes - 1) // 12, (mes - 1) % 12 + 1
+    fim = date(ano, mes, calendar.monthrange(ano, mes)[1])
+    a_receber = parcelas.filter(situacao=Situacao.A_VENCER, vencimento__gte=hoje, vencimento__lte=fim).order_by(
+        "vencimento", "financiamento__cliente__nome"
+    )
+    meses = []
+    for (ano, mes), grupo in groupby(a_receber, key=lambda p: (p.vencimento.year, p.vencimento.month)):
+        grupo = list(grupo)
+        meses.append({"mes": date(ano, mes, 1), "parcelas": grupo, "total": sum((p.valor for p in grupo), Decimal(0))})
+    return meses
 
 
 class ImportarExtratoForm(forms.Form):

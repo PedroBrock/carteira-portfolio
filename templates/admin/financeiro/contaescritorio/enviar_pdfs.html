@@ -1,0 +1,29 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}{{ block.super }}
+<script src="{% static 'financeiro/limite_envio.js' %}"></script>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Início</a> ›
+  <a href="{% url 'admin:financeiro_contaescritorio_changelist' %}">Contas do escritório</a> › Enviar PDFs
+</div>
+{% endblock %}
+
+{% block content_title %}{% endblock %}
+
+{% block content %}
+<div class="importar">
+  <h1>Enviar PDFs de contas</h1>
+  <p>Selecione as faturas ou boletos em PDF (luz, internet, água...). Para cada arquivo o sistema lê
+    valor, vencimento, fornecedor e linha digitável, cadastra a conta e guarda o PDF junto.
+    Boletos já cadastrados são ignorados. Depois é só conferir na lista.</p>
+  <form method="post" enctype="multipart/form-data" class="caixa-envio" data-limite-mb="4">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Cadastrar contas" class="default">
+  </form>
+</div>
+{% endblock %}

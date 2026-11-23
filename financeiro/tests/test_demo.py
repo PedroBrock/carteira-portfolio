@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from financeiro.demo import cpf_ficticio, formatar_extrato, gerar_demo
 from financeiro.extrato import ler_extrato
-from financeiro.models import Parcela, PendenciaCaixa, RemessaCaixa
+from financeiro.models import ContaEscritorio, ConvenioCaixa, Parcela, PendenciaCaixa, RemessaCaixa
 from financeiro.regras import Situacao
 from financeiro.tests.test_importacao import HOJE
 from financeiro.validadores import validar_cpf_cnpj
@@ -34,6 +34,8 @@ class DemoTests(TestCase):
         self.assertEqual(situacoes, set(Situacao.values))
         self.assertEqual(PendenciaCaixa.objects.filter(status=PendenciaCaixa.Status.PENDENTE).count(), 4)
         self.assertEqual(RemessaCaixa.objects.count(), 1)
+        self.assertEqual(ContaEscritorio.objects.count(), 18)  # 4 contas x 3 meses + 6 parcelas
+        self.assertEqual(ConvenioCaixa.objects.get().cidade, "Cidade Exemplo")  # boleto precisa do endereco
 
     def test_nao_sobrescreve_sem_limpar(self):
         self.popular()
@@ -41,3 +43,4 @@ class DemoTests(TestCase):
             self.popular()
         self.popular("--limpar")
         self.assertEqual(PendenciaCaixa.objects.count(), 4)
+        self.assertEqual(ContaEscritorio.objects.count(), 18)

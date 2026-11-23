@@ -1,3 +1,4 @@
+import calendar
 from decimal import Decimal
 
 from django.core.validators import RegexValidator
@@ -272,6 +273,13 @@ class ConvenioCaixa(models.Model):
     )
     cpf_cnpj = models.CharField("CPF/CNPJ do beneficiário", max_length=18, blank=True, validators=[validar_cpf_cnpj])
     nome = models.CharField("nome da empresa", max_length=30, blank=True, help_text="Como está no convênio da Caixa.")
+    endereco = models.CharField(
+        "endereço da empresa", max_length=200, blank=True, help_text="Rua, número e complemento (vai impresso no boleto)."
+    )
+    bairro = models.CharField(max_length=80, blank=True)
+    cidade = models.CharField(max_length=80, blank=True)
+    uf = models.CharField("UF", max_length=2, blank=True, validators=[validar_uf])
+    cep = models.CharField("CEP", max_length=9, blank=True, validators=[validar_cep])
     ambiente_teste = models.BooleanField(
         "em teste na Caixa",
         default=True,
@@ -309,6 +317,11 @@ class ConvenioCaixa(models.Model):
     devolucao_dias = models.PositiveSmallIntegerField(
         "dias para baixa/devolução", default=30, help_text="Dias corridos depois do vencimento."
     )
+    proxima_remessa = models.PositiveIntegerField(
+        "próxima remessa (NSA)", default=1,
+        help_text="Número da próxima remessa, igual ao \"Número Próxima Remessa\" do cadastro na Caixa. "
+        "Sobe sozinho a cada remessa de produção; remessas de teste não mudam o número.",
+    )
 
     class Meta:
         verbose_name = "convênio Caixa"
@@ -319,7 +332,17 @@ class ConvenioCaixa(models.Model):
 
     def save(self, *args, **kwargs):
         self.cpf_cnpj = formatar_cpf_cnpj(self.cpf_cnpj)
+        self.cep = formatar_cep(self.cep)
+        self.uf = (self.uf or "").upper()
         super().save(*args, **kwargs)
+
+    def faltando_boleto(self) -> list[str]:
+        """Dados do beneficiario que o boleto impresso exige (manual 67.119, itens 3.2 e 4.2.3)."""
+        campos = {
+            "cpf_cnpj": "CPF/CNPJ do beneficiário", "nome": "nome da empresa", "endereco": "endereço da empresa",
+            "cidade": "cidade", "uf": "UF", "cep": "CEP",
+        }
+        return [rotulo for campo, rotulo in campos.items() if not getattr(self, campo)]
 
     def faltando(self) -> list[str]:
         """Campos obrigatorios para gerar remessa que ainda nao foram preenchidos."""
@@ -335,7 +358,7 @@ class ConvenioCaixa(models.Model):
 class RemessaCaixa(models.Model):
     """Arquivo de remessa CNAB 240 gerado a partir das pendencias (ver remessa.py)."""
 
-    nsa = models.PositiveIntegerField("nº sequencial (NSA)", unique=True)
+    nsa = models.PositiveIntegerField("nº sequencial (NSA)")
     criado_em = models.DateTimeField("gerada em", auto_now_add=True)
     criado_por = models.ForeignKey(
         "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="gerada por"
@@ -347,7 +370,7 @@ class RemessaCaixa(models.Model):
     class Meta:
         verbose_name = "remessa para a Caixa"
         verbose_name_plural = "remessas para a Caixa"
-        ordering = ["-nsa"]
+        ordering = ["-criado_em", "-id"]
 
     def __str__(self):
         return f"Remessa {self.nsa}{' (teste)' if self.teste else ''}"
@@ -355,3 +378,82 @@ class RemessaCaixa(models.Model):
     @property
     def nome_arquivo(self):
         return f"remessa_{self.nsa:06d}.rem"
+
+
+def somar_meses(d, meses):
+    """Mesmo dia `meses` meses depois; se o dia nao existir no mes, usa o ultimo (31/01 + 1 -> 28/02, + 2 -> 31/03)."""
+    ano, mes = divmod(d.month - 1 + meses, 12)
+    ano, mes = d.year + ano, mes + 1
+    return d.replace(year=ano, month=mes, day=min(d.day, calendar.monthrange(ano, mes)[1]))
+
+
+class ContaEscritorio(models.Model):
+    """Despesa do escritorio (luz, internet, aluguel...). Nao tem relacao com a cobranca da Caixa."""
+
+    class Categoria(models.TextChoices):
+        ENERGIA = "ENERGIA", "Energia (luz)"
+        INTERNET = "INTERNET", "Internet"
+        TELEFONE = "TELEFONE", "Telefone"
+        AGUA = "AGUA", "Água"
+        ALUGUEL = "ALUGUEL", "Aluguel"
+        CONDOMINIO = "CONDOMINIO", "Condomínio"
+        IMPOSTOS = "IMPOSTOS", "Impostos e taxas"
+        MATERIAL = "MATERIAL", "Material de escritório"
+        OUTROS = "OUTROS", "Outros"
+
+    descricao = models.CharField("descrição", max_length=150, help_text="Ex.: conta de luz da sala, internet fibra.")
+    categoria = models.CharField(max_length=20, choices=Categoria.choices, default=Categoria.OUTROS)
+    fornecedor = models.CharField(max_length=100, blank=True, help_text="Ex.: Copel, Vivo, imobiliária.")
+    valor = models.DecimalField(max_digits=12, decimal_places=2)
+    vencimento = models.DateField()
+    data_pagamento = models.DateField("data de pagamento", null=True, blank=True)
+    parcela = models.PositiveSmallIntegerField("nº da parcela", null=True, blank=True)
+    total_parcelas = models.PositiveSmallIntegerField("total de parcelas", null=True, blank=True)
+    linha_digitavel = models.CharField(
+        "linha digitável", max_length=60, blank=True, help_text="Código do boleto, para pagar no banco."
+    )
+    # PDF da fatura guardado no proprio banco de dados: a hospedagem nao tem disco permanente
+    # e uma fatura tem dezenas de KB (limite de 4 MB em contas_pdf.TAMANHO_MAXIMO).
+    pdf = models.BinaryField("PDF", null=True, blank=True, editable=False)
+    pdf_nome = models.CharField("nome do PDF", max_length=150, blank=True, editable=False)
+    observacoes = models.TextField("observações", blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "conta do escritório"
+        verbose_name_plural = "contas do escritório"
+        ordering = ["-vencimento", "descricao"]
+        indexes = [models.Index(fields=["vencimento"])]
+
+    def __str__(self):
+        return f"{self.descricao}{self.rotulo_parcela} - {self.vencimento:%d/%m/%Y}"
+
+    @property
+    def rotulo_parcela(self):
+        return f" ({self.parcela}/{self.total_parcelas})" if self.parcela else ""
+
+    def lancar_demais_parcelas(self, quantidade):
+        """Torna esta conta a parcela 1/quantidade e cria as seguintes, uma por mes, com o mesmo valor."""
+        self.parcela, self.total_parcelas = 1, quantidade
+        self.save()
+        return [
+            ContaEscritorio.objects.create(
+                descricao=self.descricao,
+                categoria=self.categoria,
+                fornecedor=self.fornecedor,
+                valor=self.valor,
+                vencimento=somar_meses(self.vencimento, numero - 1),
+                parcela=numero,
+                total_parcelas=quantidade,
+                observacoes=self.observacoes,
+            )
+            for numero in range(2, quantidade + 1)
+        ]
+
+    def situacao(self, hoje=None):
+        """'PAGA', 'ATRASADA' (passou do vencimento sem pagar) ou 'EM_ABERTO'."""
+        if self.data_pagamento:
+            return "PAGA"
+        if self.vencimento < (hoje or timezone.localdate()):
+            return "ATRASADA"
+        return "EM_ABERTO"

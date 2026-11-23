@@ -1,72 +1,116 @@
 # Colocar o sistema no ar
 
-O projeto roda em qualquer hospedagem que aceite **Docker** (há um `Dockerfile` na raiz).
-Ao iniciar, o container aplica as migrações do banco, cria o usuário admin (se configurado) e sobe o servidor
-(gunicorn). A hospedagem verifica se o sistema está no ar pela rota `/saude/`.
+O sistema roda na **Vercel** (site) com o banco PostgreSQL no **Neon** (integração da própria Vercel), os dois
+em São Paulo. A cada merge no `main` a Vercel instala as dependências, aplica as migrações do banco
+(`vercel_build.sh`), junta os arquivos estáticos e publica. Os outros branches não geram deploy
+(`ignoreCommand` no `vercel.json` roda o `vercel_ignorar.sh`, que olha o ambiente e o branch), para nenhum teste mexer no banco de produção.
 
-## Opção recomendada: Railway
+Tudo o que o sistema guarda (parcelas, PDFs das contas, remessas para a Caixa, registro de atividades)
+fica **no banco**. O site não grava nada em disco, então para mudar de hospedagem basta levar o banco e as variáveis.
 
-Faz o deploy direto do GitHub, tem PostgreSQL gerenciado e HTTPS automático.
+## Limites da Vercel que afetam o sistema
 
-**Plano:** comece pelo **Grátis** (teste de 30 dias com US$ 5 de crédito, sem cartão) para montar e
-testar tudo. Antes de acabar o teste, passe para o **Hobby (US$ 5/mês, já inclui US$ 5 de uso)**:
-depois do teste o plano grátis dá só US$ 1/mês de crédito, que não sustenta o sistema + banco
-ligados o mês inteiro, e os serviços param quando o crédito acaba.
-Confira os valores atuais em railway.com/pricing.
+- **Envio e resposta de até 4,5 MB.** Por isso o PDF de uma conta do escritório vai até 4 MB e, em
+  "Enviar PDFs", os arquivos de cada envio somam no máximo 4 MB (o sistema avisa antes de enviar).
+  Extrato da Caixa (~1 MB), arquivo de remessa e PDFs de boletos ficam bem abaixo.
+- **5 minutos por requisição** (suficiente para importar extrato).
+- **Plano:** o Hobby (grátis) da Vercel é só para uso pessoal, não comercial. Para o sistema da empresa use o
+  **Pro (US$ 20/mês, já inclui US$ 20 de uso)**. O Neon grátis (1 GB, banco "dorme" após 5 min sem uso e acorda
+  no primeiro acesso) atende; confira os valores atuais em vercel.com/pricing e neon.com/pricing.
 
-1. Crie a conta em https://railway.com entrando com o GitHub.
-2. **New Project → Deploy from GitHub repo →** escolha o seu fork deste repositório
-   (autorize o Railway a acessar o repositório, se pedir). Ele usa o branch `main`.
-   O primeiro deploy vai falhar por falta das variáveis — é normal, siga os próximos passos.
-3. No mesmo projeto: **+ Create (ou botão direito no canvas) → Database → PostgreSQL**.
-4. Clique no card do **sistema** (o que tem o nome do repositório, não o do Postgres) →
-   aba **Variables** → **Raw Editor**, cole o bloco abaixo trocando os valores em MAIÚSCULAS e clique em **Update Variables**:
+## Primeira instalação na Vercel
+
+1. Crie a conta em https://vercel.com entrando com o GitHub.
+2. **Add New → Project →** importe o seu fork deste repositório. Na tela de importação abra **Environment Variables**
+   e cadastre (troque os valores em MAIÚSCULAS):
 
    ```
-   DATABASE_URL=${{Postgres.DATABASE_URL}}
    DJANGO_SECRET_KEY=COLE_AQUI_UMA_CHAVE_ALEATORIA_LONGA
    DJANGO_SUPERUSER_USERNAME=admin
    DJANGO_SUPERUSER_PASSWORD=ESCOLHA_UMA_SENHA_FORTE
    DJANGO_SUPERUSER_EMAIL=SEU_EMAIL
-   WEB_CONCURRENCY=1
    ```
 
-   - `DJANGO_SECRET_KEY`: 50+ caracteres aleatórios. Gere com
-     `python -c "import secrets; print(secrets.token_urlsafe(50))"` ou um gerador de senhas. Nunca compartilhe.
-   - `DJANGO_SUPERUSER_USERNAME` / `DJANGO_SUPERUSER_PASSWORD`: o usuário e a senha que **você** escolhe
-     para entrar no sistema. O usuário é criado no primeiro deploy.
-   - `WEB_CONCURRENCY=1`: um processo só, gasta menos memória (suficiente para um escritório).
-   - Se o banco tiver outro nome no canvas (não "Postgres"), ajuste `${{Postgres.DATABASE_URL}}`.
-5. Aba **Settings → Networking → Generate Domain**. Em "porta", use a que aparece no log do deploy
-   na linha `Listening at: http://0.0.0.0:XXXX` (no Railway normalmente **8080**). Se errar a porta, o site
-   não abre ("Application failed to respond"): edite a porta do domínio no mesmo lugar.
-   Não precisa configurar o domínio em variável: o sistema lê o domínio gerado pelo Railway sozinho.
-6. Aguarde o deploy ficar verde (**Deployments**), abra o endereço gerado, entre com o usuário e a senha
-   do passo 4 e vá em **Importar extrato** para enviar o `exemplos/extrato_exemplo.txt`
-   (ou um extrato mais novo do banco).
-7. Depois de entrar a primeira vez, apague a variável `DJANGO_SUPERUSER_PASSWORD`
-   (o usuário já existe; troque a senha pelo próprio sistema em "Alterar senha").
+   `DJANGO_SECRET_KEY`: 50+ caracteres aleatórios (`python -c "import secrets; print(secrets.token_urlsafe(50))"`).
+   Clique em **Deploy**. O primeiro deploy **falha** com "Falta o DATABASE_URL" — é normal, o banco vem no passo 4.
+3. **Settings → Environments → Production → Branch Tracking**: confirme que o branch de produção é **`main`**
+   (a Vercel usa o branch padrão do GitHub, que precisa ser o `main`).
+4. Aba **Storage → Create Database → Neon (Serverless Postgres)**, região **São Paulo (sa-east-1)**, e conecte ao
+   projeto. A Vercel cria sozinha as variáveis `DATABASE_URL` (conexão pelo pooler, usada pelo site) e
+   `DATABASE_URL_UNPOOLED` (conexão direta, usada nas migrações). Não crie essas duas à mão.
+5. **Deployments →** no último deploy, **⋯ → Redeploy**. Quando ficar "Ready", abra o endereço `.vercel.app`,
+   entre com o usuário e a senha do passo 2 e depois apague a variável `DJANGO_SUPERUSER_PASSWORD`.
 
-Cada merge no `main` gera um novo deploy automaticamente.
+O endereço `.vercel.app` do projeto é liberado sozinho pelo sistema (não precisa de `DJANGO_ALLOWED_HOSTS`).
 
-### Domínio próprio (opcional)
+## Mudar do Railway para a Vercel
 
-Use um **subdomínio**, por exemplo `financeiro.suaconstrutora.com.br`. O domínio "raiz" (`suaconstrutora.com.br`)
-normalmente já é usado pelo site e pelos e-mails da empresa e não aceita CNAME na maioria dos provedores.
+**Não apague nada no Railway até o site na Vercel estar conferido.** O Railway é a cópia de segurança durante a mudança.
 
-1. **Railway:** card do sistema → **Settings → Networking → + Custom Domain**, digite
-   `financeiro.suaconstrutora.com.br` e a porta **8080**. O Railway mostra os registros de DNS a criar:
-   um **CNAME** (nome `financeiro`, valor `xxxx.up.railway.app`) e, às vezes, um **TXT** de verificação.
-2. **Provedor do domínio** (Registro.br, GoDaddy, Hostinger, Cloudflare...): na zona de DNS do domínio,
-   crie exatamente os registros mostrados pelo Railway. No Registro.br: domínio → **DNS → Editar zona**
-   (se aparecer "modo avançado", ative) → **Nova entrada** → tipo CNAME. Na Cloudflare, deixe a nuvem
-   **cinza** ("DNS only").
-3. **Variável no sistema:** aba **Variables** → `DJANGO_ALLOWED_HOSTS=financeiro.suaconstrutora.com.br`
-   → aplique as mudanças. O endereço `.up.railway.app` continua funcionando.
-4. Aguarde a propagação do DNS (de minutos a algumas horas). Quando o Railway mostrar o domínio como
-   verificado, o certificado HTTPS é emitido sozinho e o site abre em `https://financeiro.suaconstrutora.com.br`.
+### 1. Guardar o que está no Railway
+
+- **Variáveis:** no Railway, card do sistema → **Variables → Raw Editor**, copie tudo para um arquivo
+  guardado em lugar seguro (não no GitHub). Na Vercel só serão usadas `DJANGO_SECRET_KEY` (use a **mesma**) e,
+  se tiver domínio próprio, `DJANGO_ALLOWED_HOSTS`. `DATABASE_URL`, `WEB_CONCURRENCY` e as `RAILWAY_*` não vão.
+- **Banco (backup completo):** card do **Postgres → Settings → Networking**, ative o **TCP Proxy** (se ainda não
+  estiver ativo) e copie a `DATABASE_PUBLIC_URL` da aba **Variables**. Com Docker instalado, numa pasta vazia:
+
+  ```bash
+  docker run --rm -v "$PWD:/backup" postgres:17 \
+    pg_dump --format=custom --no-owner --no-acl --file=/backup/carteira_railway.dump "URL_PUBLICA_DO_RAILWAY"
+  ```
+
+  (Sem Docker: instale o cliente do PostgreSQL — no Windows, o instalador do postgresql.org com "Command Line Tools";
+  no Mac, `brew install libpq` — e rode o mesmo `pg_dump` sem a parte do `docker run`.)
+  Se aparecer "server version mismatch", troque `postgres:17` pela versão da mensagem.
+  Guarde o arquivo `carteira_railway.dump`: ele é o backup de tudo (clientes, parcelas, PDFs, remessas, usuários).
+- **A partir daqui não altere nada no site do Railway**, senão a mudança não vai para a Vercel.
+
+### 2. Montar a Vercel com os dados
+
+1. Siga a [primeira instalação](#primeira-instalação-na-vercel) até o passo 4 (crie o Neon na **mesma versão** do
+   PostgreSQL do Railway ou mais nova), **sem** o redeploy do passo 5. Use a `DJANGO_SECRET_KEY` do Railway e não
+   cadastre `DJANGO_SUPERUSER_*` (os usuários vêm do backup).
+2. Copie a `DATABASE_URL_UNPOOLED` (Vercel → Settings → Environment Variables, ou Neon → **Connect** com
+   "Connection pooling" desligado) e restaure o backup no banco novo, que ainda está vazio:
+
+   ```bash
+   docker run --rm -v "$PWD:/backup" postgres:17 \
+     pg_restore --no-owner --no-acl --dbname="URL_DIRETA_DO_NEON" /backup/carteira_railway.dump
+   ```
+
+   Se terminar com "errors ignored on restore", leia as mensagens: aviso sobre o schema `public` já existir pode
+   ser ignorado; qualquer outro erro, apague o banco no Neon, crie de novo e repita (o Railway continua intacto).
+3. Faça o **Redeploy** (passo 5 da instalação). As migrações novas, se houver, são aplicadas no banco restaurado.
+
+### 3. Conferir antes de desligar o Railway
+
+Abra os dois sites lado a lado e confira:
+
+- [ ] Login com o seu usuário e com o de um funcionário.
+- [ ] Painel: totais a vencer / vencido / recebido no mês iguais aos do Railway.
+- [ ] Parcelas, clientes e financiamentos: mesma quantidade nas listas.
+- [ ] Contas do escritório: abrir um PDF guardado.
+- [ ] Remessas para a Caixa: baixar uma remessa antiga.
+- [ ] Gerar um boleto em PDF.
+- [ ] Importar um extrato (pode ser o mesmo já importado: nada é duplicado).
+- [ ] `https://SEU-PROJETO.vercel.app/saude/` responde "ok".
+
+### 4. Domínio próprio (se usar)
+
+1. Vercel → **Settings → Domains → Add**, digite `financeiro.suaconstrutora.com.br` e crie no provedor do domínio
+   o registro que a Vercel mostrar (normalmente um **CNAME** para `cname.vercel-dns.com`), **no lugar** do CNAME que
+   aponta para o Railway. No Registro.br: domínio → **DNS → Editar zona**. Na Cloudflare, nuvem **cinza** ("DNS only").
+2. Variável na Vercel: `DJANGO_ALLOWED_HOSTS=financeiro.suaconstrutora.com.br` → Redeploy.
+3. Quando a Vercel mostrar o domínio como válido, o HTTPS é emitido sozinho.
 
 Se abrir com "Bad Request (400)", falta (ou está diferente) o `DJANGO_ALLOWED_HOSTS`.
+
+### 5. Desligar o Railway
+
+Use só a Vercel por **uma ou duas semanas**. Se tudo estiver certo, guarde o `carteira_railway.dump` e então
+apague o projeto no Railway (e cancele o plano). Depois que a Vercel recebeu alterações, **não volte** para o
+Railway: o que foi feito na Vercel não estaria lá.
 
 ## Usuários (funcionários)
 
@@ -90,14 +134,15 @@ de extratos passa a ignorá-los; se excluiu por engano, apague o registro em **T
 
 ## Backup (importante — são dados financeiros)
 
-- No Railway, ative os backups do PostgreSQL (aba **Backups** do serviço do banco).
-- Além disso, faça periodicamente uma cópia local:
-  `pg_dump "URL_PUBLICA_DO_BANCO" > backup_AAAA-MM-DD.sql`
-  (a URL pública fica em Postgres → Variables → `DATABASE_PUBLIC_URL`).
+- O Neon grátis guarda só as últimas 6 horas para restaurar. Faça uma cópia local toda semana (e antes de
+  mudanças grandes), com a `DATABASE_URL_UNPOOLED`:
+  `docker run --rm -v "$PWD:/backup" postgres:17 pg_dump --format=custom --no-owner --no-acl --file=/backup/backup_AAAA-MM-DD.dump "URL_DIRETA_DO_NEON"`
+- Guarde as cópias fora do computador também (ex.: um drive da empresa), nunca no GitHub.
 
-## Alternativa: servidor próprio (VPS)
+## Alternativa: Docker (servidor próprio ou Railway)
 
-Em uma VPS (Hetzner, DigitalOcean, Contabo, Locaweb etc.) com Docker instalado:
+O `Dockerfile` (com `entrypoint.sh` e `railway.json`) continua no projeto. Em uma VPS (Hetzner, DigitalOcean, Contabo, Locaweb etc.)
+com Docker instalado:
 
 ```bash
 docker network create carteira
@@ -110,18 +155,19 @@ docker run -d --name web --network carteira --restart unless-stopped -p 8000:800
 
 com `DATABASE_URL=postgres://carteira:SENHA_DO_BANCO@db:5432/carteira` no `.env` (modelo em `.env.exemplo`).
 Na VPS você também precisa de um proxy com HTTPS na frente (ex. Caddy ou Nginx + Let's Encrypt)
-e de configurar os backups por conta própria — por isso o Railway é a opção recomendada.
+e de configurar os backups por conta própria.
 
 ## Variáveis de ambiente (referência)
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
 | `DJANGO_SECRET_KEY` | sim | chave secreta do Django |
-| `DATABASE_URL` | sim | conexão com o PostgreSQL |
-| `DJANGO_ALLOWED_HOSTS` | fora do Railway ou domínio próprio | domínios permitidos, separados por vírgula (no Railway o domínio gerado é lido sozinho) |
+| `DATABASE_URL` | sim | conexão com o PostgreSQL (na Vercel, criada pela integração do Neon, pelo pooler) |
+| `DATABASE_URL_UNPOOLED` | na Vercel | conexão direta do Neon, usada nas migrações (criada pela integração) |
+| `DJANGO_ALLOWED_HOSTS` | domínio próprio ou VPS | domínios permitidos, separados por vírgula (os domínios da Vercel e do Railway são lidos sozinhos) |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | não | só se o site for acessado por um endereço diferente do que o navegador mostra (ex.: proxy extra) |
-| `DJANGO_SUPERUSER_USERNAME` / `_PASSWORD` / `_EMAIL` | no 1º deploy | cria o admin se ainda não existir |
+| `DJANGO_SUPERUSER_USERNAME` / `_PASSWORD` / `_EMAIL` | na 1ª instalação | cria o admin se ainda não existir |
 | `DJANGO_SSL_REDIRECT` | não | `0` desliga o redirecionamento para HTTPS (padrão `1`) |
 | `DJANGO_HSTS_SECONDS` | não | tempo do HSTS (padrão 3600) |
-| `WEB_CONCURRENCY` | não | nº de processos do gunicorn (padrão 2) |
+| `WEB_CONCURRENCY` | só Docker | nº de processos do gunicorn (padrão 2) |
 | `DJANGO_DEBUG` | não | `1` só em desenvolvimento, **nunca** em produção |

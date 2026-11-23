@@ -1,0 +1,16 @@
+# Fora do deploy na Vercel (mesma ideia do .dockerignore): dados/ tem dados pessoais dos clientes.
+dados
+.agents
+.claude
+skills-lock.json
+.venv
+venv
+__pycache__
+*.pyc
+db.sqlite3
+.env
+.env.*
+Dockerfile
+.dockerignore
+entrypoint.sh
+railway.json
