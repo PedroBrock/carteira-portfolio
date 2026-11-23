@@ -8,11 +8,12 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
-from financeiro.demo import CONVENIO_DEMO, EMPREENDIMENTOS, formatar_extrato, gerar_demo
+from financeiro.demo import CONTAS_ESCRITORIO_DEMO, CONVENIO_DEMO, EMPREENDIMENTOS, formatar_extrato, gerar_demo
 from financeiro.extrato import EM_ABERTO, ler_extrato
 from financeiro.importacao import importar_titulos
 from financeiro.models import (
-    Atividade, Cliente, ConvenioCaixa, Financiamento, Parcela, PendenciaCaixa, RemessaCaixa, TituloExcluido,
+    Atividade, Cliente, ContaEscritorio, ConvenioCaixa, Financiamento, Parcela, PendenciaCaixa, RemessaCaixa, TituloExcluido,
+    somar_meses,
 )
 from financeiro.pendencias import _usuario_atual
 from financeiro.remessa import gerar_remessa
@@ -47,7 +48,10 @@ class Command(BaseCommand):
         with transaction.atomic():
             if opts["limpar"]:
                 # Parcelas primeiro: excluir parcela gera pedido de baixa e titulo excluido (signals).
-                for modelo in (Parcela, PendenciaCaixa, RemessaCaixa, TituloExcluido, Financiamento, Cliente, Atividade):
+                for modelo in (
+                    Parcela, PendenciaCaixa, RemessaCaixa, TituloExcluido, Financiamento, Cliente, Atividade,
+                    ContaEscritorio,
+                ):
                     modelo.objects.all().delete()
                 LogEntry.objects.all().delete()
             admin, equipe = self._usuarios(opts["usuario"], opts["senha"])
@@ -154,5 +158,19 @@ class Command(BaseCommand):
                 descricao=descricao, ip="203.0.113.10",
             )
             Atividade.objects.filter(pk=a.pk).update(data=agora - timedelta(minutes=minutos))
+        # Contas do escritorio do mes passado (pagas), deste mes e do proximo.
+        inicio_do_mes = hoje.replace(day=1)
+        for meses in (-1, 0, 1):
+            for descricao, categoria, fornecedor, valor, dia in CONTAS_ESCRITORIO_DEMO:
+                vencimento = somar_meses(inicio_do_mes, meses).replace(day=dia)
+                ContaEscritorio.objects.create(
+                    descricao=descricao, categoria=categoria, fornecedor=fornecedor, valor=valor,
+                    vencimento=vencimento, data_pagamento=vencimento if vencimento < hoje else None,
+                )
+        ContaEscritorio.objects.create(
+            descricao="Notebook do financeiro", categoria="MATERIAL", fornecedor="Loja Exemplo",
+            valor=Decimal("450.00"), vencimento=somar_meses(inicio_do_mes, 0).replace(day=25),
+        ).lancar_demais_parcelas(6)
+
         if remessa:
             self.stdout.write(f"Remessa de teste nº {remessa.nsa} gerada com {remessa.quantidade} título(s).")

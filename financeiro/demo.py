@@ -34,7 +34,20 @@ CONVENIO_DEMO = {
     "codigo_beneficiario": "7654321",
     "cpf_cnpj": "11.222.333/0001-81",
     "nome": "CONSTRUTORA EXEMPLO LTDA",
+    "endereco": "Avenida Brasil, 1000, Sala 12",
+    "bairro": "Centro",
+    "cidade": "Cidade Exemplo",
+    "uf": "SP",
+    "cep": "13000-100",
 }
+
+# Contas do escritorio ficticias: (descricao, categoria, fornecedor, valor, dia do vencimento).
+CONTAS_ESCRITORIO_DEMO = [
+    ("Conta de luz da sala", "ENERGIA", "Energia Exemplo S.A.", Decimal("312.47"), 10),
+    ("Internet - Fibra", "INTERNET", "Fibra Rapida Telecomunicacoes S.A.", Decimal("129.90"), 15),
+    ("Aluguel da sala", "ALUGUEL", "Imobiliaria Exemplo", Decimal("2400.00"), 5),
+    ("Agua e esgoto", "AGUA", "Saneamento Exemplo", Decimal("86.15"), 20),
+]
 
 
 @dataclass

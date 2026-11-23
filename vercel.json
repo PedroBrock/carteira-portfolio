@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["gru1"],
+  "buildCommand": "sh vercel_build.sh",
+  "ignoreCommand": "sh vercel_ignorar.sh",
+  "functions": {
+    "config/wsgi.py": {
+      "maxDuration": 300,
+      "excludeFiles": "{dados/**,financeiro/tests/**,.agents/**,.claude/**}"
+    }
+  }
+}

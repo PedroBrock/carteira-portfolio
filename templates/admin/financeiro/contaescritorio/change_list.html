@@ -1,0 +1,20 @@
+{% extends "admin/change_list.html" %}
+{% load financeiro_tags %}
+
+{% block object-tools-items %}
+{% if has_add_permission %}
+<li><a href="{% url 'admin:financeiro_contaescritorio_enviar_pdfs' %}">Enviar PDFs de contas</a></li>
+{% endif %}
+{{ block.super }}
+{% endblock %}
+
+{% block result_list %}
+{% if totais_contas.total %}
+<p class="totais-contas">
+  Total na tela: <strong>{{ totais_contas.total|brl }}</strong> &middot;
+  pago: <strong>{{ totais_contas.pago|brl }}</strong> &middot;
+  em aberto: <strong>{{ totais_contas.em_aberto|brl }}</strong>
+</p>
+{% endif %}
+{{ block.super }}
+{% endblock %}

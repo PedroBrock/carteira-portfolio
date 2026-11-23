@@ -5,3 +5,5 @@ venv/
 .env
 db.sqlite3
 staticfiles/
+.vercel/
+.env*.local

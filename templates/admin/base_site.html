@@ -1,21 +1,64 @@
 {% extends "admin/base.html" %}
-{% load static %}
+{% load static financeiro_tags %}
 
 {% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:"Carteira" }}{% endblock %}
 
-{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'financeiro/tema.css' %}">{% endblock %}
-
-{% block branding %}
-<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:"Carteira - Financeiro" }}</a></div>
+{% block dark-mode-vars %}
+<link rel="stylesheet" href="{% static "admin/css/dark_mode.css" %}">
+{# Tema so claro/escuro: troca o theme.js do Django (que tem o 3o modo "automatico") pelo nosso #}
+<script src="{% static 'financeiro/tema.js' %}"></script>
 {% endblock %}
 
-{% block userlinks %}<a href="{% url 'financeiro:painel' %}">Painel</a> /
-<a href="{% url 'financeiro:relatorios' %}">Relatórios</a> /
-{% if user.is_superuser %}<a href="{% url 'financeiro:atividades' %}">Atividades</a> / {% endif %}{{ block.super }}{% endblock %}
+{% block extrastyle %}{{ block.super }}
+<link rel="icon" href="{% static 'financeiro/favicon.svg' %}" type="image/svg+xml">
+<link rel="preload" href="{% static 'financeiro/fontes/barlow-400.woff2' %}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{% static 'financeiro/fontes/barlow-semi-condensed-600.woff2' %}" as="font" type="font/woff2" crossorigin>
+{% endblock %}
 
-{% block nav-global %}
-{% if not has_permission %}
-{# Telas sem login (ex.: entrar): mostra so o botao de tema claro/escuro #}
-<div id="user-tools">{% include "admin/color_theme_toggle.html" %}</div>
-{% endif %}
+{# Nosso CSS entra depois do responsive.css do Django para prevalecer tambem no celular #}
+{% block responsive %}{{ block.super }}
+<link rel="stylesheet" href="{% static 'financeiro/tema.css' %}">
+{% endblock %}
+
+{# Com login: menu lateral (marca + secoes) e barra do topo (usuario, senha, sair, tema).
+   Sem login (tela de entrar): so o topo com a marca e o botao de tema. #}
+{% block header %}
+{% if has_permission %}<aside class="lateral" id="menu-lateral">{% else %}<header id="header">{% endif %}
+  <div id="branding">
+  {% block branding %}
+  {% if has_permission %}
+  <div id="site-name"><a href="{% url 'financeiro:painel' %}" class="marca">
+    {% include "financeiro/_logo.html" %}<span class="marca-nome">Carteira</span><span class="marca-sub">Financeiro da construtora</span></a></div>
+  {% else %}
+  {# Tela de entrar: logo completa e o nome do sistema #}
+  <div id="site-name"><a href="{% url 'admin:index' %}" class="marca marca-entrar">
+    {% include "financeiro/_logo.html" with completo=True %}<span class="marca-nome">Carteira</span></a></div>
+  {% endif %}
+  {% endblock %}
+  </div>
+  {% block nav-global %}
+  {% if has_permission %}
+  {% menu_principal %}
+  {% else %}
+  <div id="user-tools">{% include "admin/color_theme_toggle.html" %}</div>
+  {% endif %}
+  {% endblock %}
+{% if has_permission %}</aside>
+<header class="barra-topo">
+  <button type="button" class="abrir-menu" aria-controls="menu-lateral" aria-expanded="false">
+    <span class="visually-hidden">Abrir menu</span><span class="abrir-menu-icone" aria-hidden="true"></span></button>
+  <a href="{% url 'financeiro:painel' %}" class="marca marca-topo">{% include "financeiro/_logo.html" %}<span class="marca-nome">Carteira</span></a>
+  {% block usertools %}
+  <div id="user-tools">
+    {% block welcome-msg %}{% firstof user.get_short_name user.get_username as nome_usuario %}
+    <span class="usuario"><span class="avatar" aria-hidden="true">{{ nome_usuario|first|upper }}</span><span class="usuario-nome">{{ nome_usuario }}</span></span>{% endblock %}
+    {% block userlinks %}
+    {% if user.has_usable_password %}<a href="{% url 'admin:password_change' %}">Alterar senha</a>{% endif %}
+    <form id="logout-form" method="post" action="{% url 'admin:logout' %}">{% csrf_token %}<button type="submit">Sair</button></form>
+    {% include "admin/color_theme_toggle.html" %}
+    {% endblock %}
+  </div>
+  {% endblock %}
+</header>
+{% else %}</header>{% endif %}
 {% endblock %}

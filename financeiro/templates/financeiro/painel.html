@@ -3,39 +3,17 @@
 
 {% block title %}Painel | Carteira{% endblock %}
 
-{% block extrastyle %}{{ block.super }}
-<style>
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
-  .card { border: 1px solid var(--hairline-color); border-radius: 8px; padding: 14px 16px; background: var(--body-bg); }
-  .card h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--body-quiet-color); text-transform: uppercase; }
-  .card .valor { font-size: 22px; font-weight: 700; }
-  .card .qtd { color: var(--body-quiet-color); }
-  .card.vencido .valor { color: var(--cor-vencido); }
-  .card.pago .valor { color: var(--cor-pago); }
-  .card.verificar .valor { color: var(--cor-verificar); }
-  .painel table { width: 100%; margin-bottom: 28px; }
-  .painel td.num, .painel th.num { text-align: right; }
-  .painel h2 { margin-top: 8px; }
-  .vazio { color: var(--body-quiet-color); margin-bottom: 28px; }
-  .aviso-caixa { background: var(--cor-verificar-fundo); color: var(--cor-verificar); padding: 10px 14px; border-radius: 8px; }
-</style>
-{% endblock %}
-
 {% block breadcrumbs %}{% endblock %}
 
 {% block content_title %}{% endblock %}
 
 {% block content %}
+{% url 'admin:financeiro_parcela_changelist' as lista_parcelas %}
 <div class="painel">
-  <h1>Painel financeiro <small style="font-weight:normal">- {{ hoje|date:"d/m/Y" }}</small></h1>
-  <p>
-    <a href="{% url 'admin:financeiro_cliente_changelist' %}">Clientes</a> ·
-    <a href="{% url 'admin:financeiro_financiamento_changelist' %}">Financiamentos</a> ·
-    <a href="{% url 'admin:financeiro_parcela_changelist' %}">Parcelas</a> ·
-    <a href="{% url 'financeiro:importar_extrato' %}">Importar extrato</a> ·
-    <a href="{% url 'financeiro:relatorios' %}">Relatórios</a>{% if user.is_superuser %} ·
-    <a href="{% url 'financeiro:atividades' %}">Registro de atividades</a>{% endif %}
-  </p>
+  <div class="cabecalho-pagina">
+    <h1>Painel financeiro</h1>
+    <p class="data-pagina">{{ hoje|date:"l, d/m/Y"|capfirst }}</p>
+  </div>
 
   {% if pendencias_caixa %}
   <p class="aviso-caixa">
@@ -44,33 +22,56 @@
   </p>
   {% endif %}
 
-  <div class="cards">
-    <div class="card"><h3>A vencer</h3>
-      <div class="valor">{{ totais.A_VENCER.total|brl }}</div>
-      <div class="qtd">{{ totais.A_VENCER.qtd }} parcela(s)</div></div>
-    <div class="card vencido"><h3>Vencido</h3>
-      <div class="valor">{{ totais.VENCIDO.total|brl }}</div>
-      <div class="qtd">{{ totais.VENCIDO.qtd }} parcela(s)</div></div>
-    <div class="card pago"><h3>Recebido no mês</h3>
-      <div class="valor">{{ recebido_mes.total|brl }}</div>
-      <div class="qtd">{{ recebido_mes.qtd }} parcela(s)</div></div>
-    <div class="card verificar"><h3>Baixado - verificar</h3>
-      <div class="valor">{{ totais.VERIFICAR.total|brl }}</div>
-      <div class="qtd">{{ totais.VERIFICAR.qtd }} parcela(s)</div></div>
-  </div>
+  {# Cada total leva para a lista de parcelas ja filtrada #}
+  <section class="faixa-totais" aria-label="Resumo da carteira">
+    <a class="total total-avencer" href="{{ lista_parcelas }}?situacao=A_VENCER">
+      <span class="total-icone" aria-hidden="true"></span>
+      <span class="total-rotulo">A vencer</span>
+      <span class="total-valor">{{ totais.A_VENCER.total|brl }}</span>
+      <span class="total-qtd">{{ totais.A_VENCER.qtd }} parcela(s)</span></a>
+    <a class="total total-vencido" href="{{ lista_parcelas }}?situacao=VENCIDO">
+      <span class="total-icone" aria-hidden="true"></span>
+      <span class="total-rotulo">Vencido</span>
+      <span class="total-valor">{{ totais.VENCIDO.total|brl }}</span>
+      <span class="total-qtd">{{ totais.VENCIDO.qtd }} parcela(s)</span></a>
+    <a class="total total-pago" href="{{ lista_parcelas }}?data_pagamento__year={{ hoje.year }}&amp;data_pagamento__month={{ hoje.month }}">
+      <span class="total-icone" aria-hidden="true"></span>
+      <span class="total-rotulo">Recebido no mês</span>
+      <span class="total-valor">{{ recebido_mes.total|brl }}</span>
+      <span class="total-qtd">{{ recebido_mes.qtd }} parcela(s)</span></a>
+    <a class="total total-verificar" href="{{ lista_parcelas }}?situacao=VERIFICAR">
+      <span class="total-icone" aria-hidden="true"></span>
+      <span class="total-rotulo">Baixado - verificar</span>
+      <span class="total-valor">{{ totais.VERIFICAR.total|brl }}</span>
+      <span class="total-qtd">{{ totais.VERIFICAR.qtd }} parcela(s)</span></a>
+  </section>
 
   {% if verificar %}
-  <h2>Baixadas pelo banco antes de vencer (verificar)</h2>
-  {% include "financeiro/_tabela_parcelas.html" with parcelas=verificar %}
+  <section class="cartao secao-parcelas secao-verificar">
+    <h2>Baixadas pelo banco antes de vencer (verificar) <span class="contagem">{{ verificar|length }}</span></h2>
+    {% include "financeiro/_tabela_parcelas.html" with parcelas=verificar %}
+  </section>
   {% endif %}
 
-  <h2>Próximos 30 dias</h2>
-  {% include "financeiro/_tabela_parcelas.html" with parcelas=proximas %}
+  <section class="cartao secao-parcelas secao-meses">
+    <h2>A receber nos próximos meses</h2>
+    {% for m in meses_a_receber %}
+    <h3 class="titulo-mes">{{ m.mes|date:"F \d\e Y" }} <span class="contagem">{{ m.parcelas|length }}</span></h3>
+    {% include "financeiro/_tabela_parcelas.html" with parcelas=m.parcelas total=m.total rotulo_total="Total do mês" %}
+    {% empty %}
+    <p class="vazio">Nenhuma parcela a vencer neste mês nem nos dois próximos.</p>
+    {% endfor %}
+  </section>
 
-  <h2>Venceram há menos de 1 mês (ainda não contam como vencidas)</h2>
-  {% include "financeiro/_tabela_parcelas.html" with parcelas=em_carencia %}
+  <section class="cartao secao-parcelas">
+    <h2>Venceram há menos de 1 mês <span class="contagem">{{ em_carencia|length }}</span></h2>
+    <p class="nota-secao">Ainda não contam como vencidas: a parcela só vence depois de completar 1 mês do vencimento.</p>
+    {% include "financeiro/_tabela_parcelas.html" with parcelas=em_carencia vazio="Nenhuma parcela nessa faixa." %}
+  </section>
 
-  <h2>Vencidas</h2>
-  {% include "financeiro/_tabela_parcelas.html" with parcelas=vencidas %}
+  <section class="cartao secao-parcelas secao-vencidas">
+    <h2>Vencidas <span class="contagem">{{ vencidas|length }}</span></h2>
+    {% include "financeiro/_tabela_parcelas.html" with parcelas=vencidas vazio="Nenhuma parcela vencida." %}
+  </section>
 </div>
 {% endblock %}
